@@ -1,4 +1,6 @@
-import {Elm} from './Main.elm'
+import {
+    Elm
+} from './Main.elm'
 
 document.title = 'Exceptions'
 
@@ -6,8 +8,12 @@ const app = Elm.Main.init({
     node: document.querySelector('main')
 })
 
-// requestAnimationFrame(() => {})
+setTimeout(init, 500)
 
-document.body.addEventListener('keyup', (e) => {
-    app.ports.globalKeyUp.send(e.keyCode)
-}, {passive: true})
+function init() {
+    document.body.addEventListener('keyup', (e) => {
+        app.ports.globalKeyUp.send(e.keyCode)
+    }, {
+        passive: true
+    })
+}

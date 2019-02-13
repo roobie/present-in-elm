@@ -1,13 +1,11 @@
-module Main exposing (..)
+module Main exposing (ContentSlideData, Model, Msg(..), Slide(..), SlideStep(..), TitleSlideData, defaultSlide, firstSlide, handleKey, init, initSlide, initSlides, main, onKeyUp, subscriptions, update, view, viewContentSlide, viewSlide, viewStep, viewTitleSlide, withDefaultSlide)
 
 import Browser
 import Html exposing (..)
 import Html.Attributes as HA
 import Html.Events as HE
 import Json.Decode as Json
-
 import Ports
-
 
 
 

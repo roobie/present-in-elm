@@ -1,16 +1,19 @@
-module Main exposing (ContentSlideData, Model, Msg(..), Slide(..), SlideStep(..), TitleSlideData, defaultSlide, firstSlide, handleKey, init, initSlide, initSlides, main, onKeyUp, subscriptions, update, view, viewContentSlide, viewSlide, viewStep, viewTitleSlide, withDefaultSlide)
+module Main exposing (main)
 
--- https://github.com/mdgriffith/elm-style-animation/issues/67
--- https://github.com/elm/compiler/issues/1851
--- https://package.elm-lang.org/packages/mdgriffith/elm-style-animation/latest/
--- import Animation
-
+import Animation as A exposing (Animation)
 import Browser
+import Browser.Dom as BD
+import Browser.Events as BE
+import Ease
 import Html exposing (..)
 import Html.Attributes as HA
 import Html.Events as HE
 import Json.Decode as Json
 import Ports
+import Random as R
+import Svg exposing (..)
+import Svg.Attributes as Svga exposing (..)
+import Task
 
 
 
@@ -26,268 +29,196 @@ main =
         }
 
 
-
--- MODEL
-
-
-type SlideStep
-    = StepLine { content : String }
-    | StepCode { content : String }
-    | StepCodeBlock { content : String }
+type alias Position =
+    { x : Float, y : Float }
 
 
-type alias TitleSlideData =
-    { title : String
+defaultPosition =
+    Position 0 0
+
+
+type VisualElement
+    = Circle { radius : Float }
+
+
+type alias Thing =
+    { animX : Animation
+    , animY : Animation
+    , visualElement : VisualElement
     }
-
-
-type alias ContentSlideData =
-    { title : String
-    }
-
-
-type Slide
-    = TitleSlide TitleSlideData
-    | ContentSlide ContentSlideData
-
-
-initSlide title =
-    TitleSlide { title = title }
-
-
-firstSlide =
-    initSlide "Exceptions"
-
-
-defaultSlide =
-    ( TitleSlide { title = "The end." }, [] )
-
-
-withDefaultSlide =
-    Maybe.withDefault defaultSlide
 
 
 type alias Model =
-    { slide : Slide
-    , slides : List ( Slide, List SlideStep )
-    , stepsSoFar : List SlideStep
-    , stepsLeft : List SlideStep
-
-    -- animation stuff
-    -- , style : Animation.State
+    { time : Float
+    , things : List Thing
+    , viewport : BD.Viewport
     }
 
 
-initSlides : List ( Slide, List SlideStep )
-initSlides =
-    [ ( ContentSlide
-            { title = "Exceptions - A" }
-      , [ StepLine { content = "Test1" }
-        , StepCode { content = "type alias Test = {a:String}" }
-        , StepCodeBlock
-            { content =
-                """type Msg
-    = StepForward
-    | NextSlide
-"""
-            }
-        ]
-      )
-    , ( TitleSlide { title = "Exceptions - B" }, [] )
-    ]
+moveAnim : A.Clock -> Float -> Float -> Animation
+moveAnim startTime from to =
+    A.animation startTime
+        |> A.from from
+        |> A.to to
+        -- |> A.ease Ease.inOutCubic
+        -- |> A.ease Ease.inElastic
+        -- |> A.ease Ease.outExpo
+        -- |> A.ease Ease.inOutCirc
+        |> A.ease (Ease.inOut Ease.inCubic Ease.outExpo)
+        |> A.duration 40
+        |> A.delay 10
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model firstSlide
-        initSlides
-        []
-        []
-      -- (Animation.style
-      --     [ Animation.left (Animation.px 0.0)
-      --     , Animation.opacity 1.0
-      --     ]
-      -- )
-    , Cmd.none
+    ( { time = 0
+      , things =
+            [ { visualElement = Circle { radius = 20 }
+              , animX = moveAnim 0 100 500
+              , animY = moveAnim 0 300 20
+              }
+            ]
+      , viewport =
+            { scene =
+                { width = 0
+                , height = 0
+                }
+            , viewport =
+                { x = 0
+                , y = 0
+                , width = 0
+                , height = 0
+                }
+            }
+      }
+    , Task.perform StoreViewport BD.getViewport
     )
 
 
-
--- UPDATE
-
-
 type Msg
-    = Nop
-    | StepBack
-    | StepForward
-    | NextSlide
+    = RunAnimations Float
+    | GlobalKeyUp Int
+    | NewDestination ( Float, Float )
+    | StoreViewport BD.Viewport
 
 
+randomPoint : Float -> Float -> R.Generator ( Float, Float )
+randomPoint maxX maxY =
+    R.pair (R.float 0 maxX) (R.float 0 maxY)
 
--- | Animate Animation.Msg
+
+doAnimateThing : Float -> Thing -> Position
+doAnimateThing time thing =
+    { x = A.animate time thing.animX
+    , y = A.animate time thing.animY
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        prevStep =
-            List.head model.stepsSoFar
+        { width, height } =
+            model.viewport.scene
 
-        nextStep =
-            List.head model.stepsLeft
+        pos =
+            doAnimateThing model.time
 
-        ( nextSlide, nextSlideSteps ) =
-            withDefaultSlide (List.head model.slides)
+        newAnim =
+            moveAnim model.time
+
+        setNewDestination nextX nextY thing =
+            let
+                { x, y } =
+                    pos thing
+            in
+            { thing
+                | animX = newAnim x nextX
+                , animY = newAnim y nextY
+            }
+
+        maybeNewDest =
+            case List.head model.things of
+                Just thing ->
+                    if A.isDone model.time thing.animX then
+                        R.generate NewDestination
+                            (randomPoint width height)
+
+                    else
+                        Cmd.none
+
+                Nothing ->
+                    Cmd.none
     in
     case msg of
-        Nop ->
-            ( model, Cmd.none )
+        GlobalKeyUp keyCode ->
+            ( model
+            , R.generate NewDestination
+                (randomPoint width height)
+            )
 
-        -- Animate animMsg ->
-        --     ( { model
-        --         | style = Animation.update animMsg model.style
-        --       }
-        --     , Cmd.none
-        --     )
-        StepBack ->
-            case prevStep of
-                Just step ->
-                    ( { model
-                        | stepsSoFar = List.drop 1 model.stepsSoFar
-                        , stepsLeft = step :: model.stepsLeft
-                      }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    -- PrevSlide
-                    ( model, Cmd.none )
-
-        StepForward ->
-            case nextStep of
-                Just step ->
-                    ( { model
-                        | stepsSoFar = step :: model.stepsSoFar
-                        , stepsLeft = List.drop 1 model.stepsLeft
-                      }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    update NextSlide model
-
-        NextSlide ->
+        RunAnimations t ->
             ( { model
-                | stepsSoFar = []
-                , stepsLeft = nextSlideSteps
-                , slide = nextSlide
-                , slides = List.drop 1 model.slides
+                | time = model.time + 1
+              }
+              -- , Cmd.none
+            , maybeNewDest
+            )
+
+        NewDestination ( x, y ) ->
+            ( { model
+                | things =
+                    List.map
+                        (setNewDestination x y)
+                        model.things
               }
             , Cmd.none
             )
 
-
-
--- SUBSCRIPTIONS
+        StoreViewport vp ->
+            ( { model | viewport = vp }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    -- Sub.none
-    Ports.globalKeyUp handleKey
-
-
-
--- Sub.batch
---     [ Ports.globalKeyUp handleKey
---     , Animation.subscription
---         Animate
---         [ model.style ]
---     ]
--- VIEW
-
-
-onKeyUp : (Int -> msg) -> Attribute msg
-onKeyUp tagger =
-    HE.on "keyup" (Json.map tagger HE.keyCode)
-
-
-handleKey keyCode =
-    case keyCode of
-        --K
-        75 ->
-            StepBack
-
-        -- Right
-        37 ->
-            StepBack
-
-        -- J
-        74 ->
-            StepForward
-
-        -- Left
-        39 ->
-            StepForward
-
-        _ ->
-            Nop
+    Sub.batch
+        [ BE.onKeyUp (Json.map GlobalKeyUp HE.keyCode)
+        , BE.onAnimationFrameDelta RunAnimations
+        ]
 
 
 view : Model -> Html Msg
 view model =
     div
         [ HA.class "fill"
-        , HE.onClick StepForward
+
+        --, HE.onClick StepForward
         ]
         [ div [ HA.class "row fill" ]
-            [ viewSlide model
+            -- [ viewSlide model
+            [ graphic model
             ]
         ]
 
 
-viewSlide : Model -> Html Msg
-viewSlide model =
-    case model.slide of
-        TitleSlide titleSlide ->
-            viewTitleSlide model titleSlide
-
-        ContentSlide contentSlide ->
-            viewContentSlide model contentSlide
-
-
-viewContentSlide : Model -> TitleSlideData -> Html Msg
-viewContentSlide model slide =
-    div []
-        [ div [ HA.class "fade-in" ] [ text slide.title ]
-        , hr [] []
-        , div [] (List.map viewStep (List.reverse model.stepsSoFar))
+graphic : Model -> Html Msg
+graphic model =
+    svg
+        [--viewBox "0 0 1920 1080"
         ]
+        (List.map (viewThing model.time) model.things)
 
 
-viewTitleSlide : Model -> TitleSlideData -> Html Msg
-viewTitleSlide model slide =
-    div [ HA.class "col center fade-in" ]
-        [ div [] [ text slide.title ]
-        , hr [] []
-        , div [] (List.map viewStep (List.reverse model.stepsSoFar))
-        ]
-
-
-viewStep : SlideStep -> Html Msg
-viewStep step =
-    case step of
-        StepLine { content } ->
-            div [ HA.class "fade-in" ] [ text content ]
-
-        StepCode { content } ->
-            div [ HA.class "fade-in" ]
-                [ code [] [ text content ]
+viewThing : Float -> Thing -> Html Msg
+viewThing time thing =
+    let
+        pos =
+            doAnimateThing time thing
+    in
+    case thing.visualElement of
+        Circle c ->
+            circle
+                [ cx (String.fromFloat pos.x)
+                , cy (String.fromFloat pos.y)
+                , r (String.fromFloat c.radius)
                 ]
-
-        StepCodeBlock { content } ->
-            div [ HA.class "fade-in" ]
-                [ pre [ HA.class "base02" ]
-                    [ code [] [ text content ]
-                    ]
-                ]
+                []

@@ -11,9 +11,11 @@ const app = Elm.Main.init({
 setTimeout(init, 500)
 
 function init() {
-    document.body.addEventListener('keyup', (e) => {
-        app.ports.globalKeyUp.send(e.keyCode)
-    }, {
-        passive: true
-    })
+    if (app && app.ports) {
+        document.body.addEventListener('keyup', (e) => {
+            app.ports.globalKeyUp.send(e.keyCode)
+        }, {
+            passive: true
+        })
+    }
 }

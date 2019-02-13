@@ -16,7 +16,12 @@ body {
     height: 100%;
 
     font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    overflow: hidden;
 }
+/* svg { position:fixed; top:0; bottom:0; left:0; right:0 } */
+svg { position:fixed; top:0; left:0; height:100%; width:100% }
+
+
 
 body > div {
     height: 100%;

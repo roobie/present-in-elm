@@ -1,0 +1,25 @@
+{
+  "name": "exceptions",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "watch": "parcel index.html",
+    "build": "parcel build index.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "elm-hot": "^1.0.1",
+    "node-elm-compiler": "^5.0.1",
+    "parcel-bundler": "^1.11.0"
+  },
+  "dependencies": {
+    "flyd": "^0.2.8",
+    "html-tags": "^2.0.0",
+    "keycode-js": "^1.0.4",
+    "mithril": "^1.1.6",
+    "patchinko": "^4.1.0"
+  }
+}

@@ -1,5 +1,10 @@
 module Main exposing (ContentSlideData, Model, Msg(..), Slide(..), SlideStep(..), TitleSlideData, defaultSlide, firstSlide, handleKey, init, initSlide, initSlides, main, onKeyUp, subscriptions, update, view, viewContentSlide, viewSlide, viewStep, viewTitleSlide, withDefaultSlide)
 
+-- https://github.com/mdgriffith/elm-style-animation/issues/67
+-- https://github.com/elm/compiler/issues/1851
+-- https://package.elm-lang.org/packages/mdgriffith/elm-style-animation/latest/
+-- import Animation
+
 import Browser
 import Html exposing (..)
 import Html.Attributes as HA
@@ -67,6 +72,9 @@ type alias Model =
     , slides : List ( Slide, List SlideStep )
     , stepsSoFar : List SlideStep
     , stepsLeft : List SlideStep
+
+    -- animation stuff
+    -- , style : Animation.State
     }
 
 
@@ -91,7 +99,15 @@ initSlides =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Model firstSlide initSlides [] []
+    ( Model firstSlide
+        initSlides
+        []
+        []
+      -- (Animation.style
+      --     [ Animation.left (Animation.px 0.0)
+      --     , Animation.opacity 1.0
+      --     ]
+      -- )
     , Cmd.none
     )
 
@@ -101,13 +117,22 @@ init _ =
 
 
 type Msg
-    = StepForward
+    = Nop
+    | StepBack
+    | StepForward
     | NextSlide
+
+
+
+-- | Animate Animation.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
+        prevStep =
+            List.head model.stepsSoFar
+
         nextStep =
             List.head model.stepsLeft
 
@@ -115,6 +140,29 @@ update msg model =
             withDefaultSlide (List.head model.slides)
     in
     case msg of
+        Nop ->
+            ( model, Cmd.none )
+
+        -- Animate animMsg ->
+        --     ( { model
+        --         | style = Animation.update animMsg model.style
+        --       }
+        --     , Cmd.none
+        --     )
+        StepBack ->
+            case prevStep of
+                Just step ->
+                    ( { model
+                        | stepsSoFar = List.drop 1 model.stepsSoFar
+                        , stepsLeft = step :: model.stepsLeft
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    -- PrevSlide
+                    ( model, Cmd.none )
+
         StepForward ->
             case nextStep of
                 Just step ->
@@ -150,6 +198,12 @@ subscriptions model =
 
 
 
+-- Sub.batch
+--     [ Ports.globalKeyUp handleKey
+--     , Animation.subscription
+--         Animate
+--         [ model.style ]
+--     ]
 -- VIEW
 
 
@@ -158,8 +212,26 @@ onKeyUp tagger =
     HE.on "keyup" (Json.map tagger HE.keyCode)
 
 
-handleKey _ =
-    StepForward
+handleKey keyCode =
+    case keyCode of
+        --K
+        75 ->
+            StepBack
+
+        -- Right
+        37 ->
+            StepBack
+
+        -- J
+        74 ->
+            StepForward
+
+        -- Left
+        39 ->
+            StepForward
+
+        _ ->
+            Nop
 
 
 view : Model -> Html Msg
@@ -186,8 +258,8 @@ viewSlide model =
 
 viewContentSlide : Model -> TitleSlideData -> Html Msg
 viewContentSlide model slide =
-    div [ HA.class "fade-in" ]
-        [ div [] [ text slide.title ]
+    div []
+        [ div [ HA.class "fade-in" ] [ text slide.title ]
         , hr [] []
         , div [] (List.map viewStep (List.reverse model.stepsSoFar))
         ]
@@ -206,15 +278,15 @@ viewStep : SlideStep -> Html Msg
 viewStep step =
     case step of
         StepLine { content } ->
-            div [] [ text content ]
+            div [ HA.class "fade-in" ] [ text content ]
 
         StepCode { content } ->
-            div []
+            div [ HA.class "fade-in" ]
                 [ code [] [ text content ]
                 ]
 
         StepCodeBlock { content } ->
-            div []
+            div [ HA.class "fade-in" ]
                 [ pre [ HA.class "base02" ]
                     [ code [] [ text content ]
                     ]

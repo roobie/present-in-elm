@@ -8,7 +8,7 @@ const app = Elm.Main.init({
     node: document.querySelector('main')
 })
 
-setTimeout(init, 500)
+setTimeout(init, 0)
 
 function init() {
     if (app && app.ports) {

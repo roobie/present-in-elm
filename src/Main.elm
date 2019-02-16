@@ -1,77 +1,119 @@
+module Main exposing (Msg(..), main, update, view)
+
 import Browser
+import Dict as D exposing (Dict)
 import Html exposing (..)
-import Html.Events exposing (..)
-import Random
-
-
-
--- MAIN
+import Html.Events exposing (onClick)
+import Parser as P exposing ((|.), (|=), Parser, Trailing(..))
+import JsonParser
 
 
 main =
-  Browser.element
-    { init = init
-    , update = update
-    , subscriptions = subscriptions
-    , view = view
-    }
-
-
-
--- MODEL
+    Browser.sandbox
+        { init = init
+        , update = update
+        , view = view
+        }
 
 
 type alias Model =
-  { dieFace : Int
-  }
+    { json : String, parseResult : Result (List P.DeadEnd) JsonParser.JsonObject }
 
 
-init : () -> (Model, Cmd Msg)
-init _ =
-  ( Model 1
-  , Cmd.none
-  )
+parseJsonIntoElm model =
+    Debug.log "T" { model | parseResult = JsonParser.run model.json }
 
-
-
--- UPDATE
+init =
+    parseJsonIntoElm
+        { json = """{
+    "primitives": [1, 2.0, true, false, null, "string"],
+}"""
+        , parseResult = Err []
+        }
 
 
 type Msg
-  = Roll
-  | NewFace Int
+    = Parse
 
 
-update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-  case msg of
-    Roll ->
-      ( model
-      , Random.generate NewFace (Random.int 1 6)
-      )
+    case msg of
+        Parse ->
+            parseJsonIntoElm model
 
-    NewFace newFace ->
-      ( Model newFace
-      , Cmd.none
-      )
-
-
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  Sub.none
-
-
-
--- VIEW
-
-
-view : Model -> Html Msg
 view model =
-  div []
-    [ h1 [] [ text (String.fromInt model.dieFace) ]
-    , button [ onClick Roll ] [ text "Roll" ]
-    ]
+    div []
+        [ pre [] [ text model.json ]
+        , showErrors model
+        ]
+
+
+showErrors : Model -> Html Msg
+showErrors model =
+    case model.parseResult of
+        Ok _ ->
+            div [] []
+
+        Err err ->
+            let
+                msgs =
+                    List.map deadEndToString err
+            in
+            div []
+                (List.map (\msg -> div [] [ pre [] [ text msg ] ]) msgs)
+
+
+deadEndsToString : List P.DeadEnd -> String
+deadEndsToString deadEnds =
+    String.concat (List.intersperse "; " (List.map deadEndToString deadEnds))
+
+
+deadEndToString : P.DeadEnd -> String
+deadEndToString deadend =
+    problemToString deadend.problem ++ " at row " ++ String.fromInt deadend.row ++ ", col " ++ String.fromInt deadend.col
+
+
+problemToString : P.Problem -> String
+problemToString p =
+    case p of
+        P.Expecting s ->
+            "expecting '" ++ s ++ "'"
+
+        P.ExpectingInt ->
+            "expecting int"
+
+        P.ExpectingHex ->
+            "expecting hex"
+
+        P.ExpectingOctal ->
+            "expecting octal"
+
+        P.ExpectingBinary ->
+            "expecting binary"
+
+        P.ExpectingFloat ->
+            "expecting float"
+
+        P.ExpectingNumber ->
+            "expecting number"
+
+        P.ExpectingVariable ->
+            "expecting variable"
+
+        P.ExpectingSymbol s ->
+            "expecting symbol '" ++ s ++ "'"
+
+        P.ExpectingKeyword s ->
+            "expecting keyword '" ++ s ++ "'"
+
+        P.ExpectingEnd ->
+            "expecting end"
+
+        P.UnexpectedChar ->
+            "unexpected char"
+
+        P.Problem s ->
+            "problem " ++ s
+
+        P.BadRepeat ->
+            "bad repeat"
